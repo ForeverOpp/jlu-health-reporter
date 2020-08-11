@@ -1,10 +1,10 @@
 [
   {
-    "name": "zhaoyy2119",
-    "passwd": "passwd"
-  },
-  {
-    "name": "test",
-    "passwd": "test1"
+    "name": "",
+    "passwd": "",
+    "zone": "中心",
+    "ap": 15,
+    "apName": "大学城2公寓",
+    "apNum": ""
   }
 ]
