@@ -97,10 +97,10 @@ for USERINFO in USERS:
                 raise Exception('The server returned a non-successful status.')
 
             info('Success!')
-            if tries == 1:
+            if tries == 0:
                 content = "一次就成功了呢~"
             else:
-                content = "试了大概" + str(tries) + "次，不过还是成功了~"
+                content = "试了大概" + str(tries + 1) + "次，不过还是成功了~"
             msg = {"title": "为%s填报成功！" % USERINFO['name'], "content": content}
             m.send(msg)
             break
