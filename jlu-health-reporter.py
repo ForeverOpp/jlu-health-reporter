@@ -2,7 +2,7 @@
 CONFIG = 'students.json'
 MAX_RETRY = 30
 RETRY_INTERVAL = 10
-DEBUG = 0  # +1
+DEBUG = 0 + 1
 
 import json
 import logging
@@ -89,10 +89,10 @@ for task in tasks:
                 raise Exception('The server returned a non-successful status.')
 
             info('Success!')
-            if tries == 1:
+            if tries == 0:
                 content = "一次就填报成功了呢~"
             else:
-                content = "尝试了大概%s次，不过还是成功了呢~" % str(tries)
+                content = "尝试了大概%s次，不过还是成功了呢~" % str(tries + 1)
             msg = {"title": "为%s填报成功！" % task['username'], "content": content}
             m.send(msg)
             break
