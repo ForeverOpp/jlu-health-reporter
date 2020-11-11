@@ -12,7 +12,7 @@ m = MessageSender.MessageSender("bark")
 m.config({"apikey": ""})
 
 def runTask(task):
-	for _ in range(RETRIES):
+	for tries in range(RETRIES):
 		try:
 			s = requests.Session()
 			s.headers.update({'Referer': 'https://ehall.jlu.edu.cn/'})
@@ -56,19 +56,19 @@ def runTask(task):
 			if json.loads(r.content)['ecode'] != 'SUCCEED' :
 				raise Exception('The server returned a non-successful status.')
 			log.info('Success!')
-      if _ == 0:
-          content = "一次就填报成功了呢~"
-      else:
-          content = "尝试了大概%s次，不过还是成功了呢~" % str(tries + 1)
-      msg = {"title": "为%s填报成功！" % task['username'], "content": content}
-      m.send(msg)
+			if tries == 0:
+			  content = "一次就填报成功了呢~"
+			else:
+			  content = "尝试了大概%s次，不过还是成功了呢~" % str(tries + 1)
+			msg = {"title": "为%s填报成功！" % task['username'], "content": content}
+			m.send(msg)
 			return
 		except Exception as e:
 			log.error(e)
-      msg = {"title": "啊这，为%s填报失败！" % task['username'], "content": "重试次数过多！" + e.__str__()}
+      		msg = {"title": "啊这，为%s填报失败！" % task['username'], "content": "重试次数过多！" + e.__str__()}
 			sleep(random.randint(1, TIMEOUT))
 	log.error('Failed too many times, exiting...')
-  m.send(msg)
+ 	m.send(msg)
 
 log.basicConfig(
 	level=log.INFO-10*DEBUG,
