@@ -1,124 +1,93 @@
 #!/usr/bin/env python3
-import json
-import logging
-import re
-from logging import debug, info, warning, error
-from sys import argv
+import os, sys, re, json, logging as log, threading, urllib3, requests, random
 from time import time, sleep
-
-import requests
-import urllib3
-
-import MessageSender
-
-with open("./students.json", encoding="utf-8") as json_file:
-    data = json.load(json_file)
-USERS = data
-# USERNAME and USERPASS are deprecated now for multi-user support
-USERNAME = 'zhaoyy2119'
-USERPASS = 'PASSWORD'
-INTERVAL = 86400
-MAX_RETRY = 30
-RETRY_INTERVAL = 20
-TRANSACTION = 'BKSMRDK'  # 'JLDX_YJS_XNYQSB'git YJSMRDK
-DEBUG = 0+1
-# 本来想搞个校区和公寓列表，但是太多了，我就整一个校区列表就行了
-zoneList = ["中心校区", "南岭校区", "新民校区", "南湖校区", "和平校区", "朝阳校区", "前卫北区"]
-apNameList = []
-
-logging.basicConfig(level=logging.INFO - 10 * DEBUG, format='%(asctime)s %(levelname)s %(message)s')
-warning('Started.')
-urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+DEBUG = 0#+1
+CONFIG = sys.argv[1] if len(sys.argv)>1 else 'students.json' # take cli arg or default
+CONFIG = os.path.join(os.path.dirname(os.path.abspath(__file__)), CONFIG) # relative to file
+# CONFIG = '/etc/jlu.conf' # force a config file here
+RETRIES = 100
+TIMEOUT = 2
+INTERVAL = 0.5
 m = MessageSender.MessageSender("bark")
-m.config({"apikey": "gpKSL4RQYEZyTiKyz9vt"})
+m.config({"apikey": ""})
 
-if USERS is None:
-    USERS = [{'name': USERNAME, 'passwd': USERPASS}]
+def runTask(task):
+	for tries in range(RETRIES):
+		try:
+			s = requests.Session()
+			s.headers.update({'Referer': 'https://ehall.jlu.edu.cn/'})
+			s.verify = False
+			
+			log.info('Authenticating...')
+			r = s.get('https://ehall.jlu.edu.cn/jlu_portal/login', timeout=TIMEOUT)
+			pid = re.search('(?<=name="pid" value=")[a-z0-9]{8}', r.text)[0]
+			log.debug(f"PID: {pid}")
+			postPayload = {'username': task['username'], 'password': task['password'], 'pid': pid}
+			r = s.post('https://ehall.jlu.edu.cn/sso/login', data=postPayload, timeout=TIMEOUT)
 
-for USERINFO in USERS:
-    for tries in range(0, MAX_RETRY):
-        try:
-            info('User: ' + str(USERINFO['name']))
-            info('Authenticating...')
-            s = requests.Session()
-            s.headers.update({'Referer': 'https://ehall.jlu.edu.cn/'})
-            s.verify = False
+			log.info('Requesting form...')
+			r = s.get(f"https://ehall.jlu.edu.cn/infoplus/form/{task['transaction']}/start", timeout=TIMEOUT)
+			csrfToken = re.search('(?<=csrfToken" content=").{32}', r.text)[0]
+			log.debug(f"CSRF: {csrfToken}")
+			postPayload = {'idc': task['transaction'], 'csrfToken': csrfToken}
+			r = s.post('https://ehall.jlu.edu.cn/infoplus/interface/start', data=postPayload, timeout=TIMEOUT)
+			sid = re.search('(?<=form/)\\d*(?=/render)', r.text)[0]
+			log.debug(f"Step ID: {sid}")
+			postPayload = {'stepId': sid, 'csrfToken': csrfToken}
+			r = s.post('https://ehall.jlu.edu.cn/infoplus/interface/render', data=postPayload, timeout=TIMEOUT)
+			data = json.loads(r.content)['entities'][0]
 
-            r = s.get('https://ehall.jlu.edu.cn/jlu_portal/login')
-            pid = re.search('(?<=name="pid" value=")[a-z0-9]{8}', r.text)[0]
-            debug('PID: ' + pid)
+			log.info('Submitting form...')
+			for k, v in task['fields'].items():
+				if eval(task['conditions'].get(k, 'True')):
+					data['data'][k] = v
+			postPayload = {
+				'actionId': 1,
+				'formData': json.dumps(data['data']),
+				'nextUsers': '{}',
+				'stepId': sid,
+				'timestamp': int(time()),
+				'boundFields': ','.join(data['fields'].keys()),
+				'csrfToken': csrfToken
+			}
+			log.debug(f"Payload: {postPayload}")
+			r = s.post('https://ehall.jlu.edu.cn/infoplus/interface/doAction', data=postPayload, timeout=TIMEOUT)
+			log.debug(f"Result: {r.text}")
+			if json.loads(r.content)['ecode'] != 'SUCCEED' :
+				raise Exception('The server returned a non-successful status.')
+			log.info('Success!')
+			if tries == 0:
+			  content = "一次就填报成功了呢~"
+			else:
+			  content = "尝试了大概%s次，不过还是成功了呢~" % str(tries + 1)
+			msg = {"title": "为%s填报成功！" % task['username'], "content": content}
+			m.send(msg)
+			return
+		except Exception as e:
+			log.error(e)
+ 			msg = {"title": "啊这，为%s填报失败！" % task['username'], "content": "重试次数过多！" + e.__str__()}
+			sleep(random.randint(1, TIMEOUT))
+	log.error('Failed too many times, exiting...')
+	m.send(msg)
 
-            postPayload = {'username': str(USERINFO['name']), 'password': str(USERINFO['passwd']), 'pid': pid}
-            r = s.post('https://ehall.jlu.edu.cn/sso/login', data=postPayload)
+log.basicConfig(
+	level=log.INFO-10*DEBUG,
+	format='%(asctime)s %(threadName)s:%(levelname)s %(message)s'
+)
+log.warning('Started.')
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
-            info('Requesting form...')
-            r = s.get('https://ehall.jlu.edu.cn/infoplus/form/' + TRANSACTION + '/start')
-            csrfToken = re.search('(?<=csrfToken" content=").{32}', r.text)[0]
-            debug('CSRF: ' + csrfToken)
-
-            postPayload = {'idc': TRANSACTION, 'csrfToken': csrfToken}
-            r = s.post('https://ehall.jlu.edu.cn/infoplus/interface/start', data=postPayload)
-            sid = re.search('(?<=form/)\\d*(?=/render)', r.text)[0]
-            debug('Step ID: ' + sid)
-
-            postPayload = {'stepId': sid, 'csrfToken': csrfToken}
-            r = s.post('https://ehall.jlu.edu.cn/infoplus/interface/render', data=postPayload)
-            data = json.loads(r.content)['entities'][0]
-            payload_1 = data['data']
-            payload_1['fieldZtw'] = '1'
-            payload_1['fieldZhongtw'] = '1'
-            payload_1['fieldWantw'] = '1'
-            for i in zoneList:
-                if USERINFO['zone'] in i:
-                    payload_1['fieldSQxq'] = str(zoneList.index(i) + 1)
-                    payload_1['fieldSQxq_Name'] = str(i)
-            payload_1['fieldSQgyl'] = str(USERINFO['ap'])
-            payload_1['fieldSQgyl_Name'] = str(USERINFO['apName'])
-            payload_1['fieldSQqsh'] = str(USERINFO['apNum'])
-            payload_1 = json.dumps(payload_1)
-            debug('DATA: ' + payload_1)
-            payload_2 = ','.join(data['fields'].keys())
-            debug('FIELDS: ' + payload_2)
-
-            info('Submitting form...')
-            postPayload = {
-                'actionId': 1,
-                'formData': payload_1,
-                'nextUsers': '{}',
-                'stepId': sid,
-                'timestamp': int(time()),
-                'boundFields': payload_2,
-                'csrfToken': csrfToken
-            }
-            r = s.post('https://ehall.jlu.edu.cn/infoplus/interface/doAction', data=postPayload)
-            debug(r.text)
-
-            if json.loads(r.content)['ecode'] != 'SUCCEED':
-                raise Exception('The server returned a non-successful status.')
-
-            info('Success!')
-            if tries == 0:
-                content = "一次就成功了呢~"
-            else:
-                content = "试了大概" + str(tries + 1) + "次，不过还是成功了~"
-            msg = {"title": "为%s填报成功！" % USERINFO['name'], "content": content}
-            m.send(msg)
-            break
-
-        except Exception as e:
-            warning(e)
-            if tries + 1 == MAX_RETRY:
-                error('Failed too many times! Skipping...')
-                msg = {"title": "为%s填报失败！" % USERINFO['name'], "content": "重试次数过多！" + e.__str__()}
-                m.send(msg)
-                break
-            error('Unknown error occured, retrying...')
-            msg = {"title": "为%s填报失败！" % USERINFO['name'], "content": "正在重试，出现异常：" + e.__str__()}
-            sleep(RETRY_INTERVAL)
-
-if len(argv) > 1 and argv[1] == '--once':
-    info('Exiting...')
-    exit()
-
-info('Waiting for next run...')
-# sleep(INTERVAL)
+log.info(f'Reading config from {CONFIG}')
+config = json.load(open(CONFIG))
+for task in config.get('tasks', [{}]):
+	for k in ['username', 'password', 'transaction']:
+		task.setdefault(k, config.get(k))
+	for k in ['fields', 'conditions']:
+		task[k] = {**config.get(k, {}), **task.get(k, {})}
+	if task['transaction']:
+		threading.Thread(
+			target=runTask,
+			name=f"{task['transaction']}:{task['username']}",
+			args=(task,)
+		).start()
+	sleep(INTERVAL)

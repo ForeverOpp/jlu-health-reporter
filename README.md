@@ -1,53 +1,42 @@
 # JLU Health Reporter
 
-为吉林大学本科生每日健康情况申报所作的自动机器人。
+为吉林大学本科生每日健康打卡所作的自动机器人，支持自动提交各类网上办事大厅事务表单。
 
-以 WTFPL 授权开源。Pray for Hubei.
+以 WTFPL 授权开源。
 
 ## 免责声明
 
-本自动程序为个人使用开发，未经充分测试，不保证正常工作。
+本自动程序为个人使用开发，适用于吉林大学各类网上办事大厅事务表单的自动提交，未经充分测试，不保证正常工作，不建议没有调试能力的人使用。
 
-本自动程序仅适用于 2020 年初 COVID-19 疫情期间吉林大学本科生、研究生健康情况申报，不保证按时更新。
-
-请注意，本自动程序仅会每 24 小时自动重新提交上次提交的内容，**如您的申报内容变化，请立即停止使用本程序！**
-
-__**如运行本程序，您理解并认可，本自动程序的一切操作均视为您本人、或由您授权的操作。**__
+**本程序以你所见到的样子呈现给你，不附带任何明示或暗示的担保，包括但不限于对功能合法性或对特定用途适用性的保证。在运行之前，你有责任理解其源代码的工作原理，并确认这是你想要执行的，本程序进行的操作都应被视为你本人进行、或由你授权代你进行的操作。在任何情况下，本程序作者与你决定运行本程序无关，不为你运行此程序所造成的任何损失、受到的处罚以及造成的法律后果等负任何责任。**
 
 ## 使用说明
 
-需要 Python 3 ，先 `pip3 install requests` 。
+需要 Python 3.6+ 和 `requests` 库。
 
-运行之前先登录平台提交一次申报，务必确保信息准确。
+运行之前**先登录平台提交一次打卡**，务必确保信息准确。
 
-把文件开头的 `USERS` 中的示例用户名和密码换为自己的，支持多帐号。
+参照 `example-config.json` 建立配置文件 `config.json` ，填入登录信息和对应表单项（目前校区、公寓楼、寝室号和部分同学的班级需要程序每次指定）的值（注意均使用字符串值）。
 
-若为**研究生健康申报**使用，请先改变文件开头的 `TRANSACTION` 。
-
-后台模式：
-
-```
-./jlu-health-reporter.py & > reporter.log 2>&1
-```
+若为**研究生健康申报**使用，请修改配置文件中的 `transaction` 项的值为 `YJSMRDK`（是否适用未经测试）。
 
 Crontab 模式：
 
 ```
-0 6 * * * /usr/bin/python3 /path/to/jlu-health-reporter.py --once >> reporter.log 2>&1
+5 8,21 * * * /usr/bin/python3 /path/to/jlu-health-reporter.py 2>reporter.log
+# 5分开始避免服务器时间略有偏差导致失败
 ```
 
-手动模式：
+手动模式（请在时段内启动）：
 
 ```
-./jlu-health-reporter.py --once
+./jlu-health-reporter.py
 ```
 
-## 推送功能介绍
-详见：[ForeverOpp/JLUAnnounceBot](https://github.com/ForeverOpp/JLUAnnounceBot#%E7%BB%93%E6%9E%84) 下的3。  
-> 该类可扩展，故设置了一个`__init__(method)`方法用以选择发送方法，支持SMTP邮件发送，ServerChan微信推送，控制台输出和iOS端的软件Bark推送，关于ServerChan的介绍，请移步[ServerChan](http://sc.ftqq.com)，关于Bark的介绍，请移步[Bark](https://github.com/Finb/Bark/) 。
+更多用法请见 [Wiki](https://github.com/TechCiel/jlu-health-reporter/wiki)
 
 ## 联系
 
-邮箱在源代码里。
+欢迎开 issue / pr ，随缘处理。
 
-欢迎开 issue 、pr ，随缘处理。
+项目讨论可至 [@JLULUG](https://t.me/JLULUG)
