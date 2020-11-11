@@ -65,10 +65,10 @@ def runTask(task):
 			return
 		except Exception as e:
 			log.error(e)
-      			msg = {"title": "啊这，为%s填报失败！" % task['username'], "content": "重试次数过多！" + e.__str__()}
+ 			msg = {"title": "啊这，为%s填报失败！" % task['username'], "content": "重试次数过多！" + e.__str__()}
 			sleep(random.randint(1, TIMEOUT))
 	log.error('Failed too many times, exiting...')
- 	m.send(msg)
+	m.send(msg)
 
 log.basicConfig(
 	level=log.INFO-10*DEBUG,
