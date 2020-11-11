@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 CONFIG = 'students.json'
-MAX_RETRY = 30
-RETRY_INTERVAL = 10
+MAX_RETRY = 3
+MAX_RETRY_INTERVAL = 300
 DEBUG = 0 + 1
 
 import json
@@ -11,6 +11,7 @@ import re
 from logging import debug, info, warning, error
 from sys import argv
 from time import time, sleep
+import random
 
 import requests
 import urllib3
@@ -105,7 +106,7 @@ for task in tasks:
                 m.send(msg)
                 break
             error('Unknown error occured!')
-            sleep(RETRY_INTERVAL)
+            sleep(random.randint(5, MAX_RETRY_INTERVAL))
 
 info('Exiting...')
 exit()
